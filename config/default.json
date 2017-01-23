@@ -2,5 +2,5 @@
     "appSecret": "fbcbb9357a64c4daa568adcc9eaf14b6",
     "pageAccessToken": "EAADMjRUwuHABAOnkoK3cjqKEtXbQkhLS7il3ZCXG81KNYhHME3y0CVAadj2MyZC8aACLx1mAhhQSeU0xjZBdOZCjemzMwA077tGfzcjF3IvTGHKBZCsJsF5bmTi9wSaXTnZBRD2qJKJZCfryfABjSqeVGnFzIUTKgZAHyDITCldkkAZDZD",
     "validationToken": "qwerty",
-    "serverURL": "https://43e09b4c.ngrok.io"
+    "serverURL": "https://ekonek.herokuapp.com/"
 }
