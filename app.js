@@ -10,6 +10,12 @@
 /* jshint node: true, devel: true */
 'use strict';
 
+var state = 0;
+var customer_name = '';
+var tin = '';
+var client = '';
+
+
 const 
   bodyParser = require('body-parser'),
   config = require('config'),
@@ -19,7 +25,7 @@ const
   request = require('request');
 
 var app = express();
-app.set('port', process.env.PORT || 5000);
+app.set('port', process.env.PORT || 4000);
 app.set('view engine', 'ejs');
 app.use(bodyParser.json({ verify: verifyRequestSignature }));
 app.use(express.static('public'));
@@ -93,13 +99,16 @@ app.post('/webhook', function (req, res) {
 
       // Iterate over each messaging event
       pageEntry.messaging.forEach(function(messagingEvent) {
+        console.log('RECEIVING');
         if (messagingEvent.optin) {
           receivedAuthentication(messagingEvent);
         } else if (messagingEvent.message) {
+          console.log('MESSAGE');
           receivedMessage(messagingEvent);
         } else if (messagingEvent.delivery) {
           receivedDeliveryConfirmation(messagingEvent);
         } else if (messagingEvent.postback) {
+          console.log('POSTBACK');
           receivedPostback(messagingEvent);
         } else if (messagingEvent.read) {
           receivedMessageRead(messagingEvent);
@@ -308,7 +317,102 @@ function receivedMessage(event) {
         break;
 
       default:
-        sendTextMessage(senderID, messageText);
+        if(state == 1){
+          var str = messageText.split(" ");
+          sendTextMessage(senderID, "Hello "+str[0]+"! Hope you're having a wonderful day. Kindly input your TIN number.(xxx-xxx-xxx-xxx)");
+          state = 2;
+          customer_name = messageText;
+        }
+        else if(state == 2){
+          var buttons = [];
+          var position = 0;
+          tin = messageText;
+
+          var str = customer_name.split(" ");
+
+          // sendTextMessage(senderID, "Great "+customer_name+"! TIN number "+tin+" validated. ");
+
+          var messageData = {
+            recipient: {
+              id: senderID
+            },
+            message: {
+              attachment: {
+                type: "template",
+                payload: {
+                  template_type: "button",
+                  text: "Great "+str[0]+"! TIN number "+tin+" valudated. Now please select the appropriate Client Type.\u000Apart 1",
+                  buttons:[
+                  {
+                    type: "postback",
+                    title: "Airport Warehouse",
+                    payload: "CLIENT_AIRPORTWAREHOUSE"
+                  }
+                  , {
+                    type: "postback",
+                    title: "Broker",
+                    payload: "CLIENT_BROKER"
+                  }
+                  , {
+                    type: "postback",
+                    title: "Importer",
+                    payload: "CLIENT_IMPORTER"
+                  }
+                  ]
+                }
+              }
+            }
+          };  
+          buttons.push(messageData);
+          position++;
+          // callSendAPI(messageData);
+
+          messageData = {
+            recipient: {
+              id: senderID
+            },
+            message: {
+              attachment: {
+                type: "template",
+                payload: {
+                  template_type: "button",
+                  text: "part 2",
+                  buttons:[
+                  {
+                    type: "postback",
+                    title: "Surety Company",
+                    payload: "CLIENT_SURETYCOMPANY"
+                  }
+                  , {
+                    type: "postback",
+                    title: "Warehouse Operator",
+                    payload: "CLIENT_WAREHOUSEOPERATOR"
+                  }
+                  , {
+                    type: "postback",
+                    title: "Once a year Importer",
+                    payload: "CLIENT_ONCEAYEARIMPORTER"
+                  }
+                  ]
+                }
+              }
+            }
+          };  
+
+          buttons.push(messageData);
+          position++;
+
+          callSendAPI2(buttons, 0);
+          // callSendAPI(messageData);
+
+
+          state = 3;
+
+
+        }
+        else{
+          sendTextMessage(senderID, messageText);
+        }
     }
   } else if (messageAttachments) {
     sendTextMessage(senderID, "Message with attachment received");
@@ -363,7 +467,172 @@ function receivedPostback(event) {
 
   // When a postback is called, we'll send a message back to the sender to 
   // let them know it was successful
-  sendTextMessage(senderID, "Postback called");
+  var str = payload.split('_');
+
+  if(payload == 'CPRS_APPLICATION'){
+    // sendTextMessage(senderID, "You've selected CPRS applications. To edit any of your inputs, you may type 'edit' anytime in the application process.");
+    // sendTextMessage(senderID, "Please type your Full Name.");
+
+    var buttons = [];
+    var position = 0;
+
+    var messageData = {
+      recipient: {
+        id: senderID
+      },
+      message: {
+        text: "You've selected CPRS applications. To edit any of your inputs, you may type 'edit' anytime in the application process.",
+        metadata: "DEVELOPER_DEFINED_METADATA"
+      }
+    };
+
+    buttons.push(messageData);
+    position++;
+
+    var messageData = {
+      recipient: {
+        id: senderID
+      },
+      message: {
+        text: "Please type your Full Name.",
+        metadata: "DEVELOPER_DEFINED_METADATA"
+      }
+    };
+
+    buttons.push(messageData);
+    position++;
+
+    callSendAPI2(buttons, 0);
+
+
+
+
+    state = 1;
+  }
+  else if(str[0] == 'CLIENT'){
+    // sendTextMessage(senderID, "Postback called: "+str[1]);
+    switch(str[1]){
+      case 'AIRPORTWAREHOUSE':
+        client = 'Airport Warehouse';
+        break;
+      case 'BROKER':
+        client = 'Broker';
+        break;
+      case 'IMPORTER':
+        client = 'Importer';
+        break;
+      case 'SURETYCOMPANY':
+        client = 'Surety Company';
+        break;
+      case 'WAREHOUSEOPERATOR':
+        client = 'Warehouse Operator';
+        break;
+      case 'ONCEAYEARIMPORTER':
+        client = 'Once a year Importer';
+        break;
+      default:
+        client = 'Others';
+        // sendTextMessage(senderID, "Postback called: default");
+    } 
+
+    var buttons = [];
+    var position = 0;
+
+
+
+
+    var str = customer_name.split(' ');
+    // sendTextMessage(senderID, "Thank you "+str[0]+ " for providing the following information. Kindly confirm if we got your information right?");
+    
+    var messageData = {
+      recipient: {
+        id: senderID
+      },
+      message: {
+        text: "Thank you "+str[0]+ " for providing the following information. Kindly confirm if we got your information right?",
+        metadata: "DEVELOPER_DEFINED_METADATA"
+      }
+    };
+
+    buttons.push(messageData);
+    position++;
+
+
+    var messageData = {
+      recipient: {
+        id: senderID
+      },
+      message: {
+        attachment: {
+          type: "template",
+          payload: {
+            template_type: "button",
+            text: "Name: "+customer_name+"\u000ATIN: "+tin+"\u000AClient Type: "+client,
+            buttons:[
+            {
+              type: "postback",
+              title: "Yes, it's right.",
+              payload: "CONFIRMATION_YES"
+            }, {
+              type: "postback",
+              title: "No, change the info.",
+              payload: "CONFIRMATION_NO"
+            }
+            ]
+          }
+        }
+      }
+    };  
+
+    buttons.push(messageData);
+    position++;
+
+    // callSendAPI(messageData);
+    callSendAPI2(buttons, 0);
+
+
+  }
+  else if(str[0] == 'CONFIRMATION'){
+    if(str[1]=='YES'){
+      // sendTextMessage(senderID, "Great! Just a moment as we pull up your account.");
+      // sendTextMessage(senderID, "Thank you for waiting. The status of your CPRS Application is ACTIVATED.");
+
+      var buttons = [];
+      var position = 0;
+
+      var messageData = {
+        recipient: {
+          id: senderID
+        },
+        message: {
+          text: "Great! Just a moment as we pull up your account.",
+          metadata: "DEVELOPER_DEFINED_METADATA"
+        }
+      };
+
+      buttons.push(messageData);
+      position++;
+
+      var messageData = {
+        recipient: {
+          id: senderID
+        },
+        message: {
+          text: "Thank you for waiting. The status of your CPRS Application is ACTIVATED.",
+          metadata: "DEVELOPER_DEFINED_METADATA"
+        }
+      };
+
+      buttons.push(messageData);
+      position++;
+
+      callSendAPI2(buttons, 0);
+
+    }
+  }
+  else{
+    sendTextMessage(senderID, "Postback called");
+  }
 }
 
 /*
@@ -385,152 +654,89 @@ function receivedMessageRead(event) {
     "number %d", watermark, sequenceNumber);
 }
 
-/*
- * Account Link Event
- *
- * This event is called when the Link Account or UnLink Account action has been
- * tapped.
- * https://developers.facebook.com/docs/messenger-platform/webhook-reference/account-linking
- * 
- */
-function receivedAccountLink(event) {
-  var senderID = event.sender.id;
-  var recipientID = event.recipient.id;
 
-  var status = event.account_linking.status;
-  var authCode = event.account_linking.authorization_code;
-
-  console.log("Received account link event with for user %d with status %s " +
-    "and auth code %s ", senderID, status, authCode);
-}
-
-/*
- * Send an image using the Send API.
- *
- */
-function sendImageMessage(recipientId) {
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message: {
-      attachment: {
-        type: "image",
-        payload: {
-          url: SERVER_URL + "/assets/rift.png"
-        }
-      }
-    }
-  };
-
-  callSendAPI(messageData);
-}
-
-/*
- * Send a Gif using the Send API.
- *
- */
-function sendGifMessage(recipientId) {
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message: {
-      attachment: {
-        type: "image",
-        payload: {
-          url: SERVER_URL + "/assets/instagram_logo.gif"
-        }
-      }
-    }
-  };
-
-  callSendAPI(messageData);
-}
-
-/*
- * Send audio using the Send API.
- *
- */
-function sendAudioMessage(recipientId) {
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message: {
-      attachment: {
-        type: "audio",
-        payload: {
-          url: SERVER_URL + "/assets/sample.mp3"
-        }
-      }
-    }
-  };
-
-  callSendAPI(messageData);
-}
-
-/*
- * Send a video using the Send API.
- *
- */
-function sendVideoMessage(recipientId) {
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message: {
-      attachment: {
-        type: "video",
-        payload: {
-          url: SERVER_URL + "/assets/allofus480.mov"
-        }
-      }
-    }
-  };
-
-  callSendAPI(messageData);
-}
-
-/*
- * Send a file using the Send API.
- *
- */
-function sendFileMessage(recipientId) {
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message: {
-      attachment: {
-        type: "file",
-        payload: {
-          url: SERVER_URL + "/assets/test.txt"
-        }
-      }
-    }
-  };
-
-  callSendAPI(messageData);
-}
 
 /*
  * Send a text message using the Send API.
  *
  */
 function sendTextMessage(recipientId, messageText) {
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message: {
-      text: messageText,
-      metadata: "DEVELOPER_DEFINED_METADATA"
-    }
-  };
+        var messageData = {
+          recipient: {
+            id: recipientId
+          },
+          message: {
+            text: messageText,
+            metadata: "DEVELOPER_DEFINED_METADATA"
+          }
+        };
 
   callSendAPI(messageData);
 }
+
+
+/*
+ * Call the Send API. The message data goes in the body. If successful, we'll 
+ * get the message id in a response 
+ *
+ */
+function callSendAPI(messageData) {
+  request({
+    uri: 'https://graph.facebook.com/v2.6/me/messages',
+    qs: { access_token: PAGE_ACCESS_TOKEN },
+    method: 'POST',
+    json: messageData
+
+  }, function (error, response, body) {
+    if (!error && response.statusCode == 200) {
+      var recipientId = body.recipient_id;
+      var messageId = body.message_id;
+
+      if (messageId) {
+        console.log("Successfully sent message with id %s to recipient %s", 
+          messageId, recipientId);
+      } else {
+      console.log("Successfully called Send API for recipient %s", 
+        recipientId);
+      }
+    } else {
+      console.error("Failed calling Send API", response.statusCode, response.statusMessage, body.error);
+    }
+  });  
+}
+
+function callSendAPI2(messageData, position) {
+  request({
+    uri: 'https://graph.facebook.com/v2.6/me/messages',
+    qs: { access_token: PAGE_ACCESS_TOKEN },
+    method: 'POST',
+    json: messageData[position]
+
+  }, function (error, response, body) {
+    if (!error && response.statusCode == 200) {
+      var recipientId = body.recipient_id;
+      var messageId = body.message_id;
+
+      if(position < messageData.length - 1){
+        callSendAPI2(messageData, position+1);
+      }
+
+
+      if (messageId) {
+        console.log("Successfully sent message with id %s to recipient %s", 
+          messageId, recipientId);
+      } else {
+      console.log("Successfully called Send API for recipient %s", 
+        recipientId);
+      }
+    } else {
+      console.error("Failed calling Send API", response.statusCode, response.statusMessage, body.error);
+    }
+  });  
+}
+
+
+
 
 /*
  * Send a button message using the Send API.
@@ -568,122 +774,6 @@ function sendButtonMessage(recipientId) {
   callSendAPI(messageData);
 }
 
-/*
- * Send a Structured Message (Generic Message type) using the Send API.
- *
- */
-function sendGenericMessage(recipientId) {
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message: {
-      attachment: {
-        type: "template",
-        payload: {
-          template_type: "generic",
-          elements: [{
-            title: "rift",
-            subtitle: "Next-generation virtual reality",
-            item_url: "https://www.oculus.com/en-us/rift/",               
-            image_url: SERVER_URL + "/assets/rift.png",
-            buttons: [{
-              type: "web_url",
-              url: "https://www.oculus.com/en-us/rift/",
-              title: "Open Web URL"
-            }, {
-              type: "postback",
-              title: "Call Postback",
-              payload: "Payload for first bubble",
-            }],
-          }, {
-            title: "touch",
-            subtitle: "Your Hands, Now in VR",
-            item_url: "https://www.oculus.com/en-us/touch/",               
-            image_url: SERVER_URL + "/assets/touch.png",
-            buttons: [{
-              type: "web_url",
-              url: "https://www.oculus.com/en-us/touch/",
-              title: "Open Web URL"
-            }, {
-              type: "postback",
-              title: "Call Postback",
-              payload: "Payload for second bubble",
-            }]
-          }]
-        }
-      }
-    }
-  };  
-
-  callSendAPI(messageData);
-}
-
-/*
- * Send a receipt message using the Send API.
- *
- */
-function sendReceiptMessage(recipientId) {
-  // Generate a random receipt ID as the API requires a unique ID
-  var receiptId = "order" + Math.floor(Math.random()*1000);
-
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message:{
-      attachment: {
-        type: "template",
-        payload: {
-          template_type: "receipt",
-          recipient_name: "Peter Chang",
-          order_number: receiptId,
-          currency: "USD",
-          payment_method: "Visa 1234",        
-          timestamp: "1428444852", 
-          elements: [{
-            title: "Oculus Rift",
-            subtitle: "Includes: headset, sensor, remote",
-            quantity: 1,
-            price: 599.00,
-            currency: "USD",
-            image_url: SERVER_URL + "/assets/riftsq.png"
-          }, {
-            title: "Samsung Gear VR",
-            subtitle: "Frost White",
-            quantity: 1,
-            price: 99.99,
-            currency: "USD",
-            image_url: SERVER_URL + "/assets/gearvrsq.png"
-          }],
-          address: {
-            street_1: "1 Hacker Way",
-            street_2: "",
-            city: "Menlo Park",
-            postal_code: "94025",
-            state: "CA",
-            country: "US"
-          },
-          summary: {
-            subtotal: 698.99,
-            shipping_cost: 20.00,
-            total_tax: 57.67,
-            total_cost: 626.66
-          },
-          adjustments: [{
-            name: "New Customer Discount",
-            amount: -50
-          }, {
-            name: "$100 Off Coupon",
-            amount: -100
-          }]
-        }
-      }
-    }
-  };
-
-  callSendAPI(messageData);
-}
 
 /*
  * Send a message with Quick Reply buttons.
@@ -719,119 +809,14 @@ function sendQuickReply(recipientId) {
   callSendAPI(messageData);
 }
 
-/*
- * Send a read receipt to indicate the message has been read
- *
- */
-function sendReadReceipt(recipientId) {
-  console.log("Sending a read receipt to mark message as seen");
 
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    sender_action: "mark_seen"
-  };
 
-  callSendAPI(messageData);
-}
-
-/*
- * Turn typing indicator on
- *
- */
-function sendTypingOn(recipientId) {
-  console.log("Turning typing indicator on");
-
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    sender_action: "typing_on"
-  };
-
-  callSendAPI(messageData);
-}
-
-/*
- * Turn typing indicator off
- *
- */
-function sendTypingOff(recipientId) {
-  console.log("Turning typing indicator off");
-
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    sender_action: "typing_off"
-  };
-
-  callSendAPI(messageData);
-}
-
-/*
- * Send a message with the account linking call-to-action
- *
- */
-function sendAccountLinking(recipientId) {
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message: {
-      attachment: {
-        type: "template",
-        payload: {
-          template_type: "button",
-          text: "Welcome. Link your account.",
-          buttons:[{
-            type: "account_link",
-            url: SERVER_URL + "/authorize"
-          }]
-        }
-      }
-    }
-  };  
-
-  callSendAPI(messageData);
-}
-
-/*
- * Call the Send API. The message data goes in the body. If successful, we'll 
- * get the message id in a response 
- *
- */
-function callSendAPI(messageData) {
-  request({
-    uri: 'https://graph.facebook.com/v2.6/me/messages',
-    qs: { access_token: PAGE_ACCESS_TOKEN },
-    method: 'POST',
-    json: messageData
-
-  }, function (error, response, body) {
-    if (!error && response.statusCode == 200) {
-      var recipientId = body.recipient_id;
-      var messageId = body.message_id;
-
-      if (messageId) {
-        console.log("Successfully sent message with id %s to recipient %s", 
-          messageId, recipientId);
-      } else {
-      console.log("Successfully called Send API for recipient %s", 
-        recipientId);
-      }
-    } else {
-      console.error("Failed calling Send API", response.statusCode, response.statusMessage, body.error);
-    }
-  });  
-}
 
 // Start server
 // Webhooks must be available via SSL with a certificate signed by a valid 
 // certificate authority.
 app.listen(app.get('port'), function() {
-  console.log('Node app is running on port', app.get('port'));
+  console.log('Node r app is running on port', app.get('port'));
 });
 
 module.exports = app;
