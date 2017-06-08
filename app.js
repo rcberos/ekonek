@@ -4,17 +4,11 @@
  *
  * This source code is licensed under the license found in the
  * LICENSE file in the root directory of this source tree.
- *
- */
+*/
 
 /* jshint node: true, devel: true */
+
 'use strict';
-
-var state = 0;
-var customer_name = '';
-var tin = '';
-var client = '';
-
 
 const 
   bodyParser = require('body-parser'),
@@ -25,16 +19,46 @@ const
   request = require('request');
 
 var app = express();
-app.set('port', process.env.PORT || 4000);
+app.set('port', process.env.PORT || 5000);
 app.set('view engine', 'ejs');
 app.use(bodyParser.json({ verify: verifyRequestSignature }));
 app.use(express.static('public'));
+
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+
+var cart_payload = '';
+
+var cart_quantity = 0;
+
+var needle = require('needle');
+
+var mysql = require('mysql');
+
+var connection = mysql.createConnection({
+  host     : 'maindb.com4k2xtorpw.ap-southeast-1.rds.amazonaws.com',
+  user     : 'Gameplandigital',
+  password : 'Gameplandigital01',
+  database : 'gp_digital'
+});
+
+connection.connect();
+
+app.get('/contact', function(req, res){
+  console.log('contact');
+  res.sendFile('index.html', {root: path.join(__dirname, '/')});
+});
+
+// var menu = require('./menu.js');
 
 /*
  * Be sure to setup your config values before running this code. You can 
  * set them using environment variables or modifying the config file in /config.
  *
- */
+*/
 
 // App Secret can be retrieved from the App Dashboard
 const APP_SECRET = (process.env.MESSENGER_APP_SECRET) ? 
@@ -57,6 +81,12 @@ const SERVER_URL = (process.env.SERVER_URL) ?
   (process.env.SERVER_URL) :
   config.get('serverURL');
 
+const GOOGLE_KEY = (process.env.GOOGLE_KEY) ?
+  (process.env.GOOGLE_KEY) :
+  config.get('googleAPIKey');
+
+  console.log(GOOGLE_KEY);
+
 if (!(APP_SECRET && VALIDATION_TOKEN && PAGE_ACCESS_TOKEN && SERVER_URL)) {
   console.error("Missing config values");
   process.exit(1);
@@ -66,7 +96,8 @@ if (!(APP_SECRET && VALIDATION_TOKEN && PAGE_ACCESS_TOKEN && SERVER_URL)) {
  * Use your own validation token. Check that the token used in the Webhook 
  * setup is the same token used here.
  *
- */
+*/
+
 app.get('/webhook', function(req, res) {
   if (req.query['hub.mode'] === 'subscribe' &&
       req.query['hub.verify_token'] === VALIDATION_TOKEN) {
@@ -78,7 +109,6 @@ app.get('/webhook', function(req, res) {
   }  
 });
 
-
 /*
  * All callbacks for Messenger are POST-ed. They will be sent to the same
  * webhook. Be sure to subscribe your app to your page to receive callbacks
@@ -86,6 +116,7 @@ app.get('/webhook', function(req, res) {
  * https://developers.facebook.com/docs/messenger-platform/product-overview/setup#subscribe_app
  *
  */
+
 app.post('/webhook', function (req, res) {
   var data = req.body;
 
@@ -99,16 +130,13 @@ app.post('/webhook', function (req, res) {
 
       // Iterate over each messaging event
       pageEntry.messaging.forEach(function(messagingEvent) {
-        console.log('RECEIVING');
         if (messagingEvent.optin) {
           receivedAuthentication(messagingEvent);
         } else if (messagingEvent.message) {
-          console.log('MESSAGE');
           receivedMessage(messagingEvent);
         } else if (messagingEvent.delivery) {
           receivedDeliveryConfirmation(messagingEvent);
         } else if (messagingEvent.postback) {
-          console.log('POSTBACK');
           receivedPostback(messagingEvent);
         } else if (messagingEvent.read) {
           receivedMessageRead(messagingEvent);
@@ -119,24 +147,67 @@ app.post('/webhook', function (req, res) {
         }
       });
     });
-
     // Assume all went well.
-    //
+    // 
     // You must send back a 200, within 20 seconds, to let us know you've 
     // successfully received the callback. Otherwise, the request will time out.
     res.sendStatus(200);
+
   }
 });
+
+/* BACK UP - w/ ref no and messenger id
+app.post('/submit', function(req, res){
+  console.log('DONE');
+  console.log(req.body.Message);
+  console.log(req.body.MessengerId);
+  var text = 'Thank you for using ekonek. Your ticket number is '+req.body.Ref+'. We shall work on your request and you may come back and check the status here by using the ticket no. provided for immediate concerns. You may alternately contact our hotline. Thank you!';
+  sendTextMessage(req.body.MessengerId, text);
+  res.send(req.body.Message);
+});
+*/
+
+app.post('/submit', function(req, res){
+
+
+  connection.query("SELECT * FROM ekonek_status WHERE status='"+req.body.Status+"'", function(err, rows, fields){
+
+  for (var i = 0; i < rows.length; i++) {      
+
+  console.log(req.body.MessengerId);
+  var text = 'Your CPRS status is '+req.body.Status+' ('+rows[i].desc+'). Thank you for choosing Ekonek! :)';
+  sendTextMessage(req.body.MessengerId, text);
+  res.send(req.body.Message);
+
+  }
+
+  });  
+
+
+});
+
+
+/*
+app.post('/submit', function(req, res){
+
+  console.log('DONE');
+  console.log(req.body.MessengerId);
+  var text = 'Your CPRS status is '+req.body.Status+'. Thank you for choosing Ekonek! :)';
+  sendTextMessage(req.body.MessengerId, text);
+  res.send(req.body.Message);
+
+});
+*/
 
 /*
  * This path is used for account linking. The account linking call-to-action
  * (sendAccountLinking) is pointed to this URL. 
  * 
- */
+*/
+
 app.get('/authorize', function(req, res) {
   var accountLinkingToken = req.query.account_linking_token;
   var redirectURI = req.query.redirect_uri;
-
   // Authorization Code should be generated per user by the developer. This will 
   // be passed to the Account Linking callback.
   var authCode = "1234567890";
@@ -151,6 +222,64 @@ app.get('/authorize', function(req, res) {
   });
 });
 
+  // var data = {
+  //   senderID: senderID,
+  //   type: type,
+  //   payload: payload
+  // };
+
+  // var options = {
+  //   headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  // }
+
+  // console.log(data);
+   
+  // needle.post('http://gpdigital.crabdance.com/api/v0/chatbot.php', data, options, function(err, resp, body) {
+  //   if(!err){
+  
+  //   }
+  //   else{
+  //     console.log('needle error');
+  //   }
+  // });
+
+  var GlobalMenu;
+
+  // var link = 'http://gpdigital.crabdance.com/kfc_bot/v0/kfcbot.php';
+  // needle.get(link, function(error, response) {
+  //     if (!error){
+  //       // console.log(response.body);
+  //       GlobalMenu = JSON.parse(response.body);
+  //       console.log(GlobalMenu.category);
+  //       console.log(GlobalMenu.category[0].item);
+  //       console.log(GlobalMenu.category[0].item[0].variant);
+  //     }
+  //     else{
+  //       console.log("error");
+  //     }
+  //   });
+ 
+    var InitialData = {
+      action: "get_menu"
+    };
+
+    var GlobalHeader = {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    };
+     
+    needle.post('http://gpdigital.crabdance.com/kfc_bot/v0/kfcbot.php', InitialData, GlobalHeader, function(err, resp, body) {
+      if(!err){
+        // console.log(resp.body);
+        GlobalMenu = JSON.parse(resp.body);
+        console.log(GlobalMenu.category);
+        console.log(GlobalMenu.category[0].item);
+        console.log(GlobalMenu.category[0].item[0].variant);
+      }
+      else{
+        console.log('needle error');
+      }
+    });
+
 /*
  * Verify that the callback came from Facebook. Using the App Secret from 
  * the App Dashboard, we can verify the signature that is sent with each 
@@ -160,8 +289,8 @@ app.get('/authorize', function(req, res) {
  *
  */
 function verifyRequestSignature(req, res, buf) {
-  var signature = req.headers["x-hub-signature"];
 
+  var signature = req.headers["x-hub-signature"];
   if (!signature) {
     // For testing, let's log an error. In production, you should throw an 
     // error.
@@ -174,11 +303,11 @@ function verifyRequestSignature(req, res, buf) {
     var expectedHash = crypto.createHmac('sha1', APP_SECRET)
                         .update(buf)
                         .digest('hex');
-
     if (signatureHash != expectedHash) {
       throw new Error("Couldn't validate the request signature.");
     }
   }
+
 }
 
 /*
@@ -224,8 +353,10 @@ function receivedAuthentication(event) {
  * then we'll simply confirm that we've received the attachment.
  * 
  */
+
 function receivedMessage(event) {
   var senderID = event.sender.id;
+  var senderName = event.sender.name;
   var recipientID = event.recipient.id;
   var timeOfMessage = event.timestamp;
   var message = event.message;
@@ -254,168 +385,42 @@ function receivedMessage(event) {
     console.log("Quick reply for message %s with payload %s",
       messageId, quickReplyPayload);
 
-    sendTextMessage(senderID, "Quick reply tapped");
+    processPostback(quickReplyPayload, senderID, senderName, timeOfMessage);
+    // sendTextMessage(senderID, "Quick reply tapped");
     return;
   }
 
+  //DETECT NUMBERS
   if (messageText) {
+    connection.query('SELECT * FROM ekonek_inquiries', function(err, rows, fields){
 
-    // If we receive a text message, check to see if it matches any special
-    // keywords and send back the corresponding example. Otherwise, just echo
-    // the text we received.
-    switch (messageText) {
-      case 'image':
-        sendImageMessage(senderID);
-        break;
+    for (var i = 0; i < rows.length; i++) {    
+      
+      if (messageText == rows[i].RefNo){
 
-      case 'gif':
-        sendGifMessage(senderID);
-        break;
+       var text = "Your CPRS application status is '"+rows[i].Remarks+"'. If you have any questions, please feel free to call our help desk at 911-8888.";
+//       var text = "Hi "+rows[i].Name+", with a ticket number of "+rows[i].RefNo+" your status is "+rows[i].Remarks;
+       sendTextMessage(senderID, text); 
+       
+       return;
+      }
+   }// END FOR LOOP 
+    //for default message
+    for (var j = 0; j < rows.length; j++) {    
 
-      case 'audio':
-        sendAudioMessage(senderID);
-        break;
+      if (messageText !== rows[j].RefNo){
 
-      case 'video':
-        sendVideoMessage(senderID);
-        break;
+       var text = "Pls. make sure that you input your reference no. correctly :)";
+//     var text = "Hi "+rows[i].Name+", with a ticket number of "+rows[i].RefNo+" your status is "+rows[i].Remarks;
+       sendTextMessage(senderID, text); 
+       
+       return;
 
-      case 'file':
-        sendFileMessage(senderID);
-        break;
+      }
+   }// END FOR LOOP 
 
-      case 'button':
-        sendButtonMessage(senderID);
-        break;
+    }); // END SELECT QUERY
 
-      case 'generic':
-        sendGenericMessage(senderID);
-        break;
-
-      case 'receipt':
-        sendReceiptMessage(senderID);
-        break;
-
-      case 'quick reply':
-        sendQuickReply(senderID);
-        break;        
-
-      case 'read receipt':
-        sendReadReceipt(senderID);
-        break;        
-
-      case 'typing on':
-        sendTypingOn(senderID);
-        break;        
-
-      case 'typing off':
-        sendTypingOff(senderID);
-        break;        
-
-      case 'account linking':
-        sendAccountLinking(senderID);
-        break;
-
-      default:
-        if(state == 1){
-          var str = messageText.split(" ");
-          sendTextMessage(senderID, "Hello "+str[0]+"! Hope you're having a wonderful day. Kindly input your TIN number.(xxx-xxx-xxx-xxx)");
-          state = 2;
-          customer_name = messageText;
-        }
-        else if(state == 2){
-          var buttons = [];
-          var position = 0;
-          tin = messageText;
-
-          var str = customer_name.split(" ");
-
-          // sendTextMessage(senderID, "Great "+customer_name+"! TIN number "+tin+" validated. ");
-
-          var messageData = {
-            recipient: {
-              id: senderID
-            },
-            message: {
-              attachment: {
-                type: "template",
-                payload: {
-                  template_type: "button",
-                  text: "Great "+str[0]+"! TIN number "+tin+" valudated. Now please select the appropriate Client Type.\u000Apart 1",
-                  buttons:[
-                  {
-                    type: "postback",
-                    title: "Airport Warehouse",
-                    payload: "CLIENT_AIRPORTWAREHOUSE"
-                  }
-                  , {
-                    type: "postback",
-                    title: "Broker",
-                    payload: "CLIENT_BROKER"
-                  }
-                  , {
-                    type: "postback",
-                    title: "Importer",
-                    payload: "CLIENT_IMPORTER"
-                  }
-                  ]
-                }
-              }
-            }
-          };  
-          buttons.push(messageData);
-          position++;
-          // callSendAPI(messageData);
-
-          messageData = {
-            recipient: {
-              id: senderID
-            },
-            message: {
-              attachment: {
-                type: "template",
-                payload: {
-                  template_type: "button",
-                  text: "part 2",
-                  buttons:[
-                  {
-                    type: "postback",
-                    title: "Surety Company",
-                    payload: "CLIENT_SURETYCOMPANY"
-                  }
-                  , {
-                    type: "postback",
-                    title: "Warehouse Operator",
-                    payload: "CLIENT_WAREHOUSEOPERATOR"
-                  }
-                  , {
-                    type: "postback",
-                    title: "Once a year Importer",
-                    payload: "CLIENT_ONCEAYEARIMPORTER"
-                  }
-                  ]
-                }
-              }
-            }
-          };  
-
-          buttons.push(messageData);
-          position++;
-
-          callSendAPI2(buttons, 0);
-          // callSendAPI(messageData);
-
-
-          state = 3;
-
-
-        }
-        else{
-          sendTextMessage(senderID, messageText);
-        }
-    }
-  } else if (messageAttachments) {
-    sendTextMessage(senderID, "Message with attachment received");
   }
 }
 
@@ -446,6 +451,77 @@ function receivedDeliveryConfirmation(event) {
 }
 
 
+
+function generateText(senderID, text){
+  var messageData = {
+    recipient: {
+      id: senderID
+    },
+    message: {
+      text: text,
+      metadata: "DEVELOPER_DEFINED_METADATA"
+    }
+  };
+  return messageData;
+}
+
+
+function processPostback(payload, senderID, senderName, timeOfPostback){
+  timeOfPostback = Math.floor(timeOfPostback/1000);
+  console.log("\nPOSTBACK PAYLOAD: "+payload+" SenderID: "+senderID+" Sender Name: "+senderName+"\n");
+  var payload_tag = payload.split('_');
+
+  if(payload == 'GET_STARTED'){
+
+  needle.get('https://graph.facebook.com/v2.6/'+senderID+'?access_token='+PAGE_ACCESS_TOKEN, function(error, response) {  
+  var name = response.body.first_name+" "+response.body.last_name;
+
+  var messageData = {
+
+    recipient:{
+      id: senderID
+    },
+    message:{
+      attachment:{
+        type:"template",
+        payload:{
+          template_type:"button",
+          text:"Hi! "+response.body.first_name+", Thank you for choosing E-Konek. In order to proceed, please let us know if you have an existing ticket/reference number.",
+          buttons:[
+            {
+              type: "postback",
+              title: "Yes, I have",
+              payload: "YES",
+            },
+            {
+              type: "web_url",
+              url: "https://ekonek-webview.herokuapp.com",
+              title: "No, I don't have",
+              webview_height_ratio: "tall",
+              messenger_extensions: true
+            }
+          ]
+        }
+      }
+    }
+
+  };  
+
+    callSendAPI(messageData);
+
+});  
+  }
+
+  else if(payload == 'YES'){
+
+  var text = "Great! Please type your reference number below. ;)";
+  sendTextMessage(senderID, text);
+
+  }
+
+}
+
+
 /*
  * Postback Event
  *
@@ -455,6 +531,7 @@ function receivedDeliveryConfirmation(event) {
  */
 function receivedPostback(event) {
   var senderID = event.sender.id;
+  var senderName = event.sender.name;
   var recipientID = event.recipient.id;
   var timeOfPostback = event.timestamp;
 
@@ -464,175 +541,14 @@ function receivedPostback(event) {
 
   console.log("Received postback for user %d and page %d with payload '%s' " + 
     "at %d", senderID, recipientID, payload, timeOfPostback);
+  console.log(event);
 
   // When a postback is called, we'll send a message back to the sender to 
   // let them know it was successful
-  var str = payload.split('_');
 
-  if(payload == 'CPRS_APPLICATION'){
-    // sendTextMessage(senderID, "You've selected CPRS applications. To edit any of your inputs, you may type 'edit' anytime in the application process.");
-    // sendTextMessage(senderID, "Please type your Full Name.");
+  processPostback(payload, senderID, senderName, timeOfPostback);
 
-    var buttons = [];
-    var position = 0;
-
-    var messageData = {
-      recipient: {
-        id: senderID
-      },
-      message: {
-        text: "You've selected CPRS applications. To edit any of your inputs, you may type 'edit' anytime in the application process.",
-        metadata: "DEVELOPER_DEFINED_METADATA"
-      }
-    };
-
-    buttons.push(messageData);
-    position++;
-
-    var messageData = {
-      recipient: {
-        id: senderID
-      },
-      message: {
-        text: "Please type your Full Name.",
-        metadata: "DEVELOPER_DEFINED_METADATA"
-      }
-    };
-
-    buttons.push(messageData);
-    position++;
-
-    callSendAPI2(buttons, 0);
-
-
-
-
-    state = 1;
-  }
-  else if(str[0] == 'CLIENT'){
-    // sendTextMessage(senderID, "Postback called: "+str[1]);
-    switch(str[1]){
-      case 'AIRPORTWAREHOUSE':
-        client = 'Airport Warehouse';
-        break;
-      case 'BROKER':
-        client = 'Broker';
-        break;
-      case 'IMPORTER':
-        client = 'Importer';
-        break;
-      case 'SURETYCOMPANY':
-        client = 'Surety Company';
-        break;
-      case 'WAREHOUSEOPERATOR':
-        client = 'Warehouse Operator';
-        break;
-      case 'ONCEAYEARIMPORTER':
-        client = 'Once a year Importer';
-        break;
-      default:
-        client = 'Others';
-        // sendTextMessage(senderID, "Postback called: default");
-    } 
-
-    var buttons = [];
-    var position = 0;
-
-
-
-
-    var str = customer_name.split(' ');
-    // sendTextMessage(senderID, "Thank you "+str[0]+ " for providing the following information. Kindly confirm if we got your information right?");
-    
-    var messageData = {
-      recipient: {
-        id: senderID
-      },
-      message: {
-        text: "Thank you "+str[0]+ " for providing the following information. Kindly confirm if we got your information right?",
-        metadata: "DEVELOPER_DEFINED_METADATA"
-      }
-    };
-
-    buttons.push(messageData);
-    position++;
-
-
-    var messageData = {
-      recipient: {
-        id: senderID
-      },
-      message: {
-        attachment: {
-          type: "template",
-          payload: {
-            template_type: "button",
-            text: "Name: "+customer_name+"\u000ATIN: "+tin+"\u000AClient Type: "+client,
-            buttons:[
-            {
-              type: "postback",
-              title: "Yes, it's right.",
-              payload: "CONFIRMATION_YES"
-            }, {
-              type: "postback",
-              title: "No, change the info.",
-              payload: "CONFIRMATION_NO"
-            }
-            ]
-          }
-        }
-      }
-    };  
-
-    buttons.push(messageData);
-    position++;
-
-    // callSendAPI(messageData);
-    callSendAPI2(buttons, 0);
-
-
-  }
-  else if(str[0] == 'CONFIRMATION'){
-    if(str[1]=='YES'){
-      // sendTextMessage(senderID, "Great! Just a moment as we pull up your account.");
-      // sendTextMessage(senderID, "Thank you for waiting. The status of your CPRS Application is ACTIVATED.");
-
-      var buttons = [];
-      var position = 0;
-
-      var messageData = {
-        recipient: {
-          id: senderID
-        },
-        message: {
-          text: "Great! Just a moment as we pull up your account.",
-          metadata: "DEVELOPER_DEFINED_METADATA"
-        }
-      };
-
-      buttons.push(messageData);
-      position++;
-
-      var messageData = {
-        recipient: {
-          id: senderID
-        },
-        message: {
-          text: "Thank you for waiting. The status of your CPRS Application is ACTIVATED.",
-          metadata: "DEVELOPER_DEFINED_METADATA"
-        }
-      };
-
-      buttons.push(messageData);
-      position++;
-
-      callSendAPI2(buttons, 0);
-
-    }
-  }
-  else{
-    sendTextMessage(senderID, "Postback called");
-  }
+  // sendTextMessage(senderID, "Postback called");
 }
 
 /*
@@ -654,89 +570,155 @@ function receivedMessageRead(event) {
     "number %d", watermark, sequenceNumber);
 }
 
+/*
+ * Account Link Event
+ *
+ * This event is called when the Link Account or UnLink Account action has been
+ * tapped.
+ * https://developers.facebook.com/docs/messenger-platform/webhook-reference/account-linking
+ * 
+ */
+function receivedAccountLink(event) {
+  var senderID = event.sender.id;
+  var recipientID = event.recipient.id;
 
+  var status = event.account_linking.status;
+  var authCode = event.account_linking.authorization_code;
+
+  console.log("Received account link event with for user %d with status %s " +
+    "and auth code %s ", senderID, status, authCode);
+}
+
+/*
+ * Send an image using the Send API.
+ *
+ */
+function sendImageMessage(recipientId) {
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      attachment: {
+        type: "image",
+        payload: {
+          url: SERVER_URL + "/assets/rift.png"
+        }
+      }
+    }
+  };
+
+  callSendAPI(messageData);
+}
+
+/*
+ * Send a Gif using the Send API.
+ *
+ */
+
+function sendGifMessage(recipientId) {
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      attachment: {
+        type: "image",
+        payload: {
+          url: SERVER_URL + "/assets/instagram_logo.gif"
+        }
+      }
+    }
+  };
+
+  callSendAPI(messageData);
+
+}
+
+/*
+ * Send audio using the Send API.
+ *
+ */
+function sendAudioMessage(recipientId) {
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      attachment: {
+        type: "audio",
+        payload: {
+          url: SERVER_URL + "/assets/sample.mp3"
+        }
+      }
+    }
+  };
+
+  callSendAPI(messageData);
+}
+
+/*
+ * Send a video using the Send API.
+ *
+ */
+ 
+function sendVideoMessage(recipientId) {
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      attachment: {
+        type: "video",
+        payload: {
+          url: SERVER_URL + "/assets/allofus480.mov"
+        }
+      }
+    }
+  };
+
+  callSendAPI(messageData);
+}
+
+/*
+ * Send a file using the Send API.
+ *
+ */
+function sendFileMessage(recipientId) {
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      attachment: {
+        type: "file",
+        payload: {
+          url: SERVER_URL + "/assets/test.txt"
+        }
+      }
+    }
+  };
+
+  callSendAPI(messageData);
+}
 
 /*
  * Send a text message using the Send API.
  *
  */
 function sendTextMessage(recipientId, messageText) {
-        var messageData = {
-          recipient: {
-            id: recipientId
-          },
-          message: {
-            text: messageText,
-            metadata: "DEVELOPER_DEFINED_METADATA"
-          }
-        };
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      text: messageText,
+      metadata: "DEVELOPER_DEFINED_METADATA"
+    }
+  };
 
   callSendAPI(messageData);
 }
-
-
-/*
- * Call the Send API. The message data goes in the body. If successful, we'll 
- * get the message id in a response 
- *
- */
-function callSendAPI(messageData) {
-  request({
-    uri: 'https://graph.facebook.com/v2.6/me/messages',
-    qs: { access_token: PAGE_ACCESS_TOKEN },
-    method: 'POST',
-    json: messageData
-
-  }, function (error, response, body) {
-    if (!error && response.statusCode == 200) {
-      var recipientId = body.recipient_id;
-      var messageId = body.message_id;
-
-      if (messageId) {
-        console.log("Successfully sent message with id %s to recipient %s", 
-          messageId, recipientId);
-      } else {
-      console.log("Successfully called Send API for recipient %s", 
-        recipientId);
-      }
-    } else {
-      console.error("Failed calling Send API", response.statusCode, response.statusMessage, body.error);
-    }
-  });  
-}
-
-function callSendAPI2(messageData, position) {
-  request({
-    uri: 'https://graph.facebook.com/v2.6/me/messages',
-    qs: { access_token: PAGE_ACCESS_TOKEN },
-    method: 'POST',
-    json: messageData[position]
-
-  }, function (error, response, body) {
-    if (!error && response.statusCode == 200) {
-      var recipientId = body.recipient_id;
-      var messageId = body.message_id;
-
-      if(position < messageData.length - 1){
-        callSendAPI2(messageData, position+1);
-      }
-
-
-      if (messageId) {
-        console.log("Successfully sent message with id %s to recipient %s", 
-          messageId, recipientId);
-      } else {
-      console.log("Successfully called Send API for recipient %s", 
-        recipientId);
-      }
-    } else {
-      console.error("Failed calling Send API", response.statusCode, response.statusMessage, body.error);
-    }
-  });  
-}
-
-
-
 
 /*
  * Send a button message using the Send API.
@@ -774,6 +756,122 @@ function sendButtonMessage(recipientId) {
   callSendAPI(messageData);
 }
 
+/*
+ * Send a Structured Message (Generic Message type) using the Send API.
+ *
+ */
+function sendGenericMessage(recipientId) {
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "generic",
+          elements: [{
+            title: "rift",
+            subtitle: "Next-generation virtual reality",
+            item_url: "https://www.oculus.com/en-us/rift/",               
+            image_url: SERVER_URL + "/assets/rift.png",
+            buttons: [{
+              type: "web_url",
+              url: "https://www.oculus.com/en-us/rift/",
+              title: "Open Web URL"
+            }, {
+              type: "postback",
+              title: "Call Postback",
+              payload: "Payload for first bubble",
+            }],
+          }, {
+            title: "touch",
+            subtitle: "Your Hands, Now in VR",
+            item_url: "https://www.oculus.com/en-us/touch/",               
+            image_url: SERVER_URL + "/assets/touch.png",
+            buttons: [{
+              type: "web_url",
+              url: "https://www.oculus.com/en-us/touch/",
+              title: "Open Web URL"
+            }, {
+              type: "postback",
+              title: "Call Postback",
+              payload: "Payload for second bubble",
+            }]
+          }]
+        }
+      }
+    }
+  };  
+
+  callSendAPI(messageData);
+}
+
+/*
+ * Send a receipt message using the Send API.
+ *
+ */
+function sendReceiptMessage(recipientId) {
+  // Generate a random receipt ID as the API requires a unique ID
+  var receiptId = "order" + Math.floor(Math.random()*1000);
+
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message:{
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "receipt",
+          recipient_name: "Peter Chang",
+          order_number: receiptId,
+          currency: "USD",
+          payment_method: "Visa 1234",        
+          timestamp: "1428444852", 
+          elements: [{
+            title: "Oculus Rift",
+            subtitle: "Includes: headset, sensor, remote",
+            quantity: 1,
+            price: 599.00,
+            currency: "USD",
+            image_url: SERVER_URL + "/assets/riftsq.png"
+          }, {
+            title: "Samsung Gear VR",
+            subtitle: "Frost White",
+            quantity: 1,
+            price: 99.99,
+            currency: "USD",
+            image_url: SERVER_URL + "/assets/gearvrsq.png"
+          }],
+          address: {
+            street_1: "1 Hacker Way",
+            street_2: "",
+            city: "Menlo Park",
+            postal_code: "94025",
+            state: "CA",
+            country: "US"
+          },
+          summary: {
+            subtotal: 698.99,
+            shipping_cost: 20.00,
+            total_tax: 57.67,
+            total_cost: 626.66
+          },
+          adjustments: [{
+            name: "New Customer Discount",
+            amount: -50
+          }, {
+            name: "$100 Off Coupon",
+            amount: -100
+          }]
+        }
+      }
+    }
+  };
+
+  callSendAPI(messageData);
+}
 
 /*
  * Send a message with Quick Reply buttons.
@@ -809,14 +907,150 @@ function sendQuickReply(recipientId) {
   callSendAPI(messageData);
 }
 
+/*
+ * Send a read receipt to indicate the message has been read
+ *
+ */
+function sendReadReceipt(recipientId) {
+  console.log("Sending a read receipt to mark message as seen");
+
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    sender_action: "mark_seen"
+  };
+
+  callSendAPI(messageData);
+}
+
+/*
+ * Turn typing indicator on
+ *
+ */
+function sendTypingOn(recipientId) {
+  console.log("Turning typing indicator on");
+
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    sender_action: "typing_on"
+  };
+
+  callSendAPI(messageData);
+}
+
+/*
+ * Turn typing indicator off
+ *
+ */
+function sendTypingOff(recipientId) {
+  console.log("Turning typing indicator off");
+
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    sender_action: "typing_off"
+  };
+
+  callSendAPI(messageData);
+}
+
+/*
+ * Send a message with the account linking call-to-action
+ *
+ */
+function sendAccountLinking(recipientId) {
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "button",
+          text: "Welcome. Link your account.",
+          buttons:[{
+            type: "account_link",
+            url: SERVER_URL + "/authorize"
+          }]
+        }
+      }
+    }
+  };  
+
+  callSendAPI(messageData);
+}
+
+/*
+ * Call the Send API. The message data goes in the body. If successful, we'll 
+ * get the message id in a response 
+ *
+ */
+function callSendAPI(messageData) {
+  request({
+    uri: 'https://graph.facebook.com/v2.6/me/messages',
+    qs: { access_token: PAGE_ACCESS_TOKEN },
+    method: 'POST',
+    json: messageData
+
+  }, function (error, response, body) {
+    if (!error && response.statusCode == 200) {
+      var recipientId = body.recipient_id;
+      var messageId = body.message_id;
+
+      if (messageId) {
+        console.log("Successfully sent message with id %s to recipient %s", 
+          messageId, recipientId);
+      } else {
+      console.log("Successfully called Send API for recipient %s", 
+        recipientId);
+      }
+    } else {
+      console.error("Failed calling Send API", response.statusCode, response.statusMessage, body.error);
+    }
+  });  
+}
 
 
+function callSendAPI2(messageData, position) {
+  request({
+    uri: 'https://graph.facebook.com/v2.6/me/messages',
+    qs: { access_token: PAGE_ACCESS_TOKEN },
+    method: 'POST',
+    json: messageData[position]
+
+  }, function (error, response, body) {
+    if (!error && response.statusCode == 200) {
+      var recipientId = body.recipient_id;
+      var messageId = body.message_id;
+
+      if(position < messageData.length - 1){
+        callSendAPI2(messageData, position+1);
+      }
+
+
+      if (messageId) {
+        console.log("Successfully sent message with id %s to recipient %s", 
+          messageId, recipientId);
+      } else {
+      console.log("Successfully called Send API for recipient %s", 
+        recipientId);
+      }
+    } else {
+      console.error("Failed calling Send API", response.statusCode, response.statusMessage, body.error);
+    }
+  });  
+}
 
 // Start server
 // Webhooks must be available via SSL with a certificate signed by a valid 
 // certificate authority.
 app.listen(app.get('port'), function() {
-  console.log('Node r app is running on port', app.get('port'));
+  console.log('Node app is running on port', app.get('port'));
 });
 
 module.exports = app;

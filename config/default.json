@@ -1,6 +1,13 @@
 {
-    "appSecret": "fbcbb9357a64c4daa568adcc9eaf14b6",
-    "pageAccessToken": "EAADMjRUwuHABAOnkoK3cjqKEtXbQkhLS7il3ZCXG81KNYhHME3y0CVAadj2MyZC8aACLx1mAhhQSeU0xjZBdOZCjemzMwA077tGfzcjF3IvTGHKBZCsJsF5bmTi9wSaXTnZBRD2qJKJZCfryfABjSqeVGnFzIUTKgZAHyDITCldkkAZDZD",
-    "validationToken": "qwerty",
-    "serverURL": "https://1f6744a2.ngrok.io"
+    // "appSecret": "4337980323e29f2b73476169f9114b47",
+    // "pageAccessToken": "EAAI3iT4ZCDj4BAMXH1wCQEZCt2xCeIK0ZAFyxZAATx8U5cr3VfQfZB2DSZA1rACH6gbH0yZBdZA6P1gAIefeOicyZALMi6y5BIhzZAK2lOlYQFmZCpA6IlUY8ZAXTjHkwLoHtLnfv0hytkACesTqiDS0CBv4NvRiZBry7yuFA9Sx4TwWZA6wZDZD",
+    // "validationToken": "qwerty",
+    "appSecret": "fbbf16e3cf59b142b65f488bed7204e3",
+    "pageAccessToken": "EAAa4ashb6koBAFp1JTErj6hWv4euM2t86bN1lcFzxwScEHpoiFeaZAQWE2b2qXZBUI4FHlyi3nGGL0ezzHm40LqKdzwDZA3oYLyOH64Mnv9mXf7kxgH0ZCoTwvWl5bfVxrgLOZCVSsmcbZBhl3NfrmR6chVt9J0T90cZANN72V2ZBAZDZD",
+    "validationToken": "promo",
+
+
+
+    "serverURL": "https://ekonek-patsy.herokuapp.com/",
+    "googleAPIKey": "AIzaSyCaPXvqhFdmyjb6_kpYizN4h2B46xM4Jkg"
 }
